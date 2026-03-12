@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import requests
+import time
 
 app = Flask(__name__)
 
@@ -9,7 +10,9 @@ CREATOR = {
     "whatsapp_channel": "https://whatsapp.com/channel/0029VawtjOXJpe8X3j3NCZ3j"
 }
 
-# Home route
+# ========================
+# Home Route
+# ========================
 @app.route("/")
 def home():
     return jsonify({
@@ -18,14 +21,14 @@ def home():
         "creator": CREATOR,
         "routes": {
             "youtube": "/api/ytdown?url=",
-            "facebook": "/api/fb?id="
+            "facebook": "/api/fb?url="
         }
     })
 
 
-# =========================
-# YouTube Downloader Route
-# =========================
+# ========================
+# YouTube Downloader
+# ========================
 @app.route("/api/ytdown", methods=["GET"])
 def ytdown():
     url = request.args.get("url")
@@ -70,39 +73,67 @@ def ytdown():
         })
 
 
-# =========================
-# Facebook Video Route
-# =========================
+# ========================
+# Facebook Downloader
+# ========================
 @app.route("/api/fb", methods=["GET"])
-def facebook():
-    job_id = request.args.get("id")
+def fb_downloader():
+    url = request.args.get("url")
 
-    if not job_id:
+    if not url:
         return jsonify({
             "status": 400,
-            "error": "Missing job id"
+            "error": "Missing Facebook URL"
         })
 
-    url = f"https://app.publer.com/api/v1/job_status/{job_id}"
-
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "User-Agent": "Mozilla/5.0"
-    }
-
     try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
+        # Step 1: Create job
+        create_job_url = "https://app.publer.com/api/v1/media"
 
-        video = None
-        if data.get("payload"):
-            video = data["payload"][0].get("path")
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        payload = {
+            "url": url
+        }
+
+        job = requests.post(create_job_url, json=payload, headers=headers)
+        job_data = job.json()
+
+        job_id = job_data.get("id")
+
+        if not job_id:
+            return jsonify({
+                "status": 500,
+                "error": "Failed to create job",
+                "response": job_data
+            })
+
+        # Step 2: Wait a bit for processing
+        time.sleep(3)
+
+        # Step 3: Get job result
+        status_url = f"https://app.publer.com/api/v1/job_status/{job_id}"
+
+        r = requests.get(status_url, headers=headers)
+        data = r.json()
+
+        if "payload" not in data:
+            return jsonify({
+                "status": 202,
+                "message": "Video still processing",
+                "response": data
+            })
+
+        video = data["payload"][0]["path"]
 
         return jsonify({
             "status": 200,
             "creator": CREATOR,
-            "video": video,
-            "raw": data
+            "video": video
         })
 
     except Exception as e:
@@ -112,6 +143,8 @@ def facebook():
         })
 
 
-# Run server
+# ========================
+# Run API
+# ========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

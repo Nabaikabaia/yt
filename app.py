@@ -10,7 +10,7 @@ CREATOR = {
 }
 
 # =========================
-# Home Route
+# HOME
 # =========================
 @app.route("/")
 def home():
@@ -26,10 +26,11 @@ def home():
 
 
 # =========================
-# YouTube Downloader
+# YOUTUBE DOWNLOADER
 # =========================
 @app.route("/api/ytdown", methods=["GET"])
 def ytdown():
+
     url = request.args.get("url")
 
     if not url:
@@ -41,9 +42,9 @@ def ytdown():
     endpoint = "https://app.ytdown.to/proxy.php"
 
     headers = {
+        "User-Agent": "Mozilla/5.0",
         "Accept": "*/*",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "User-Agent": "Mozilla/5.0",
         "Origin": "https://ytdown.to",
         "Referer": "https://ytdown.to/",
         "X-Requested-With": "XMLHttpRequest"
@@ -71,10 +72,11 @@ def ytdown():
 
 
 # =========================
-# Facebook Downloader
+# FACEBOOK DOWNLOADER
 # =========================
 @app.route("/api/fb", methods=["GET"])
 def fb():
+
     url = request.args.get("url")
 
     if not url:
@@ -84,20 +86,29 @@ def fb():
         })
 
     try:
-        api = f"https://api.fdownloader.net/api/ajaxSearch?url={url}"
+
+        # follow redirect for share links
+        r = requests.get(url, allow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0"
+        })
+
+        real_url = r.url
+
+        api = f"https://api.fdownloader.net/api/ajaxSearch?url={real_url}"
 
         headers = {
             "User-Agent": "Mozilla/5.0",
             "Accept": "application/json"
         }
 
-        r = requests.get(api, headers=headers)
-        data = r.json()
+        res = requests.get(api, headers=headers)
+
+        data = res.json()
 
         return jsonify({
             "status": 200,
             "creator": CREATOR,
-            "result": data
+            "video_data": data
         })
 
     except Exception as e:
@@ -108,7 +119,7 @@ def fb():
 
 
 # =========================
-# Run Server
+# RUN SERVER
 # =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
